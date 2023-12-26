@@ -1,9 +1,9 @@
 import { CosmosClient } from "@azure/cosmos";
 import {
-  app,
-  HttpRequest,
-  HttpResponseInit,
+  EventGridPartialEvent,
   InvocationContext,
+  app,
+  output,
 } from "@azure/functions";
 import "dotenv/config";
 
@@ -25,22 +25,30 @@ async function prepareContainer() {
 }
 
 export async function Lockkeeper(
-  request: HttpRequest,
+  message: Record<string, unknown>,
   context: InvocationContext
-): Promise<HttpResponseInit> {
+): Promise<EventGridPartialEvent> {
   const container = await prepareContainer();
   const items = await container.items.readAll().fetchAll();
 
+  context.log("Service bus queue function processed message:", message);
+  const timeStamp = new Date().toISOString();
   return {
-    body: JSON.stringify(items.resources),
-    headers: {
-      "Content-Type": "application/json",
-    },
+    id: "message-id",
+    subject: "subject-name",
+    dataVersion: "1.0",
+    eventType: "event-type",
+    data: { message, items_from_db: items.resources },
+    eventTime: timeStamp,
   };
 }
 
-app.http("lockkeeper", {
-  methods: ["GET", "POST"],
-  authLevel: "anonymous",
+app.serviceBusQueue("lockkeeper", {
+  connection: "Locknot_SERVICEBUS",
+  queueName: "LockRequests",
+  return: output.eventGrid({
+    topicEndpointUri: "EVENT_GRID_TOPIC_ENDPOINT",
+    topicKeySetting: "EVENT_GRID_ACCESS_KEY",
+  }),
   handler: Lockkeeper,
 });

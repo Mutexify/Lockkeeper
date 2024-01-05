@@ -5,14 +5,15 @@ import {
   app,
   output,
 } from "@azure/functions";
+import { ServiceBusMessage } from "@azure/service-bus";
 import "dotenv/config";
+const { ServiceBusClient } = require("@azure/service-bus");
+
+const resultQueueName: string = "lockresults";
 
 async function prepareContainer() {
   const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
   const cosmos_key = process.env.COSMOS_KEY;
-  if (!cosmos_endpoint || !cosmos_key) {
-    throw new Error("Cosmos DB credentials missing");
-  }
   const client = new CosmosClient({
     endpoint: cosmos_endpoint,
     key: cosmos_key,
@@ -26,15 +27,31 @@ async function prepareContainer() {
   return container;
 }
 
+const serviceBusOutput = output.serviceBusQueue({
+  queueName: resultQueueName,
+  connection: "SERVICE_BUS_CONNECTION_STRING",
+});
+
 export async function Lockkeeper(
   message: Record<string, unknown>,
   context: InvocationContext
 ): Promise<EventGridPartialEvent> {
   const container = await prepareContainer();
+
   const items = await container.items.readAll().fetchAll();
 
-  context.log("Service bus queue function processed message:", message);
+  context.log("Trigger service bus queue function processed message:", message);
   const timeStamp = new Date().toISOString();
+
+  const resultMessage: ServiceBusMessage = {
+    contentType: "application/json",
+    subject: "Scientist",
+    body: { result: "successBlocked" },
+    timeToLive: 2 * 60 * 1000, // message expires in 2 minutes
+  };
+
+  context.extraOutputs.set(serviceBusOutput, resultMessage);
+
   return {
     id: "message-id",
     subject: "subject-name",
@@ -52,5 +69,6 @@ app.serviceBusQueue("lockkeeper", {
     topicEndpointUri: "EVENT_GRID_TOPIC_ENDPOINT",
     topicKeySetting: "EVENT_GRID_ACCESS_KEY",
   }),
+  extraOutputs: [serviceBusOutput],
   handler: Lockkeeper,
 });

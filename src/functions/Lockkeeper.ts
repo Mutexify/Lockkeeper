@@ -7,14 +7,16 @@ import {
 } from "@azure/functions";
 import "dotenv/config";
 
-const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
-const cosmos_key = process.env.COSMOS_KEY;
-if (!cosmos_endpoint || !cosmos_key) {
-  throw new Error("Cosmos DB credentials missing");
-}
-const client = new CosmosClient({ endpoint: cosmos_endpoint, key: cosmos_key });
-
 async function prepareContainer() {
+  const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
+  const cosmos_key = process.env.COSMOS_KEY;
+  if (!cosmos_endpoint || !cosmos_key) {
+    throw new Error("Cosmos DB credentials missing");
+  }
+  const client = new CosmosClient({
+    endpoint: cosmos_endpoint,
+    key: cosmos_key,
+  });
   const { database } = await client.databases.createIfNotExists({
     id: "mutexio",
   });

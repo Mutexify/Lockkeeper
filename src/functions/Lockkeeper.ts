@@ -5,10 +5,10 @@ import {
   app,
   output,
 } from "@azure/functions";
-import { ServiceBusMessage } from "@azure/service-bus";
 import "dotenv/config";
+import { slotData } from "../Lockkeeper/types";
 
-async function prepareContainer() {
+async function prepareCosmosContainer() {
   const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
   const cosmos_key = process.env.COSMOS_KEY;
   const client = new CosmosClient({
@@ -30,30 +30,32 @@ const serviceBusOutput = output.serviceBusQueue({
 });
 
 export async function Lockkeeper(
-  message: Record<string, unknown>,
+  message: slotData,
   context: InvocationContext
 ): Promise<EventGridPartialEvent> {
-  const container = await prepareContainer();
-
-  const items = await container.items.readAll().fetchAll();
-
   context.log("Trigger service bus queue function processed message:", message);
-  const timeStamp = new Date().toISOString();
 
-  const resultMessage: ServiceBusMessage = {
-    contentType: "application/json",
-    body: { result: "successBlocked" },
-    timeToLive: 2 * 60 * 1000,
-  };
-
+  const container = await prepareCosmosContainer();
+  const updated = await container.item(message.id).patch({
+    operations: [
+      {
+        op: "replace",
+        path: "/blocked",
+        value: message.blocked,
+      },
+    ],
+  });
+  const resultMessage = updated.resource;
+  context.log("Updated message in DB, result: ", resultMessage);
   context.extraOutputs.set(serviceBusOutput, resultMessage);
 
+  const timeStamp = new Date().toISOString();
   return {
     id: "message-id",
-    subject: "subject-name",
+    subject: "lock-result",
     dataVersion: "1.0",
     eventType: "event-type",
-    data: { message, items_from_db: items.resources },
+    data: { result: updated.resource },
     eventTime: timeStamp,
   };
 }

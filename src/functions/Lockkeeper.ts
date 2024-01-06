@@ -7,9 +7,6 @@ import {
 } from "@azure/functions";
 import { ServiceBusMessage } from "@azure/service-bus";
 import "dotenv/config";
-const { ServiceBusClient } = require("@azure/service-bus");
-
-const resultQueueName: string = "lockresults";
 
 async function prepareContainer() {
   const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
@@ -28,8 +25,8 @@ async function prepareContainer() {
 }
 
 const serviceBusOutput = output.serviceBusQueue({
-  queueName: resultQueueName,
-  connection: "SERVICE_BUS_CONNECTION_STRING",
+  queueName: process.env.SERVICEBUS_RESULT_QUEUE_NAME,
+  connection: "SERVICEBUS_CONNECTION_STRING",
 });
 
 export async function Lockkeeper(
@@ -45,9 +42,8 @@ export async function Lockkeeper(
 
   const resultMessage: ServiceBusMessage = {
     contentType: "application/json",
-    subject: "Scientist",
     body: { result: "successBlocked" },
-    timeToLive: 2 * 60 * 1000, // message expires in 2 minutes
+    timeToLive: 2 * 60 * 1000,
   };
 
   context.extraOutputs.set(serviceBusOutput, resultMessage);
@@ -63,8 +59,8 @@ export async function Lockkeeper(
 }
 
 app.serviceBusQueue("lockkeeper", {
-  connection: "Locknot_SERVICEBUS",
-  queueName: "LockRequests",
+  connection: "SERVICEBUS_CONNECTION_STRING",
+  queueName: process.env.SERVICEBUS_TRIGGER_QUEUE_NAME,
   return: output.eventGrid({
     topicEndpointUri: "EVENT_GRID_TOPIC_ENDPOINT",
     topicKeySetting: "EVENT_GRID_ACCESS_KEY",

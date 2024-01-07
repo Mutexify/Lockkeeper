@@ -1,70 +1,40 @@
-import { CosmosClient } from "@azure/cosmos";
 import {
   EventGridPartialEvent,
   InvocationContext,
   app,
   output,
 } from "@azure/functions";
-import { ServiceBusMessage } from "@azure/service-bus";
 import "dotenv/config";
-const { ServiceBusClient } = require("@azure/service-bus");
-
-const resultQueueName: string = "lockresults";
-
-async function prepareContainer() {
-  const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
-  const cosmos_key = process.env.COSMOS_KEY;
-  const client = new CosmosClient({
-    endpoint: cosmos_endpoint,
-    key: cosmos_key,
-  });
-  const { database } = await client.databases.createIfNotExists({
-    id: "mutexio",
-  });
-  const { container } = await database.containers.createIfNotExists({
-    id: "slots",
-  });
-  return container;
-}
+import { maybeUpdateLock } from "../Lockkeeper/lockLogic";
+import { SlotData } from "../Lockkeeper/types";
 
 const serviceBusOutput = output.serviceBusQueue({
-  queueName: resultQueueName,
-  connection: "SERVICE_BUS_CONNECTION_STRING",
+  queueName: process.env.SERVICEBUS_RESULT_QUEUE_NAME,
+  connection: "SERVICEBUS_CONNECTION_STRING",
 });
 
 export async function Lockkeeper(
-  message: Record<string, unknown>,
+  message: SlotData,
   context: InvocationContext
 ): Promise<EventGridPartialEvent> {
-  const container = await prepareContainer();
-
-  const items = await container.items.readAll().fetchAll();
-
   context.log("Trigger service bus queue function processed message:", message);
-  const timeStamp = new Date().toISOString();
-
-  const resultMessage: ServiceBusMessage = {
-    contentType: "application/json",
-    subject: "Scientist",
-    body: { result: "successBlocked" },
-    timeToLive: 2 * 60 * 1000, // message expires in 2 minutes
-  };
+  const resultMessage = await maybeUpdateLock(message);
+  context.log("Updated message in DB, result: ", resultMessage);
 
   context.extraOutputs.set(serviceBusOutput, resultMessage);
-
   return {
     id: "message-id",
-    subject: "subject-name",
+    subject: "lock-result",
     dataVersion: "1.0",
     eventType: "event-type",
-    data: { message, items_from_db: items.resources },
-    eventTime: timeStamp,
+    data: resultMessage,
+    eventTime: new Date().toISOString(),
   };
 }
 
 app.serviceBusQueue("lockkeeper", {
-  connection: "Locknot_SERVICEBUS",
-  queueName: "LockRequests",
+  connection: "SERVICEBUS_CONNECTION_STRING",
+  queueName: process.env.SERVICEBUS_TRIGGER_QUEUE_NAME,
   return: output.eventGrid({
     topicEndpointUri: "EVENT_GRID_TOPIC_ENDPOINT",
     topicKeySetting: "EVENT_GRID_ACCESS_KEY",

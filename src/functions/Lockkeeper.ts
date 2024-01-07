@@ -6,7 +6,7 @@ import {
   output,
 } from "@azure/functions";
 import "dotenv/config";
-import { slotData } from "../Lockkeeper/types";
+import { LockResultData, SlotData } from "../Lockkeeper/types";
 
 async function prepareCosmosContainer() {
   const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
@@ -30,7 +30,7 @@ const serviceBusOutput = output.serviceBusQueue({
 });
 
 export async function Lockkeeper(
-  message: slotData,
+  message: SlotData,
   context: InvocationContext
 ): Promise<EventGridPartialEvent> {
   context.log("Trigger service bus queue function processed message:", message);
@@ -45,7 +45,12 @@ export async function Lockkeeper(
       },
     ],
   });
-  const resultMessage = updated.resource;
+
+  const resultMessage: LockResultData = {
+    result: "success",
+    slotData: { id: updated.resource.id, blocked: updated.resource.blocked },
+  };
+
   context.log("Updated message in DB, result: ", resultMessage);
   context.extraOutputs.set(serviceBusOutput, resultMessage);
 
@@ -55,7 +60,7 @@ export async function Lockkeeper(
     subject: "lock-result",
     dataVersion: "1.0",
     eventType: "event-type",
-    data: { result: updated.resource },
+    data: resultMessage,
     eventTime: timeStamp,
   };
 }

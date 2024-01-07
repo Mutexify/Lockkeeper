@@ -1,4 +1,3 @@
-import { CosmosClient } from "@azure/cosmos";
 import {
   EventGridPartialEvent,
   InvocationContext,
@@ -6,23 +5,8 @@ import {
   output,
 } from "@azure/functions";
 import "dotenv/config";
-import { LockResultData, SlotData } from "../Lockkeeper/types";
-
-async function prepareCosmosContainer() {
-  const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
-  const cosmos_key = process.env.COSMOS_KEY;
-  const client = new CosmosClient({
-    endpoint: cosmos_endpoint,
-    key: cosmos_key,
-  });
-  const { database } = await client.databases.createIfNotExists({
-    id: "mutexio",
-  });
-  const { container } = await database.containers.createIfNotExists({
-    id: "slots",
-  });
-  return container;
-}
+import { maybeUpdateLock } from "../Lockkeeper/lockLogic";
+import { SlotData } from "../Lockkeeper/types";
 
 const serviceBusOutput = output.serviceBusQueue({
   queueName: process.env.SERVICEBUS_RESULT_QUEUE_NAME,
@@ -34,34 +18,17 @@ export async function Lockkeeper(
   context: InvocationContext
 ): Promise<EventGridPartialEvent> {
   context.log("Trigger service bus queue function processed message:", message);
-
-  const container = await prepareCosmosContainer();
-  const updated = await container.item(message.id).patch({
-    operations: [
-      {
-        op: "replace",
-        path: "/blocked",
-        value: message.blocked,
-      },
-    ],
-  });
-
-  const resultMessage: LockResultData = {
-    result: "success",
-    slotData: { id: updated.resource.id, blocked: updated.resource.blocked },
-  };
-
+  const resultMessage = await maybeUpdateLock(message);
   context.log("Updated message in DB, result: ", resultMessage);
-  context.extraOutputs.set(serviceBusOutput, resultMessage);
 
-  const timeStamp = new Date().toISOString();
+  context.extraOutputs.set(serviceBusOutput, resultMessage);
   return {
     id: "message-id",
     subject: "lock-result",
     dataVersion: "1.0",
     eventType: "event-type",
     data: resultMessage,
-    eventTime: timeStamp,
+    eventTime: new Date().toISOString(),
   };
 }
 

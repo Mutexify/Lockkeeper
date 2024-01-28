@@ -1,4 +1,9 @@
-import { prepareCosmosContainer, slotDataFromDBResponse } from "./helpers";
+import {
+  getItemOfId,
+  patchItemOfId,
+  prepareCosmosContainer,
+  slotDataFromDBResponse,
+} from "./cosmosWrapper";
 import { LockResultData, SlotData } from "./types";
 
 export async function maybeUpdateLock(
@@ -6,7 +11,7 @@ export async function maybeUpdateLock(
 ): Promise<LockResultData> {
   const container = await prepareCosmosContainer();
 
-  const item = await container.item(slotData.id).read();
+  const item = await getItemOfId(container, slotData.id);
 
   if (item.statusCode === 404) {
     return {
@@ -23,7 +28,7 @@ export async function maybeUpdateLock(
       slotData: slotDataFromDBResponse(item.resource),
     };
   } else if (item.statusCode === 200) {
-    const updated = await container.item(slotData.id).patch({
+    const updated = await patchItemOfId(container, slotData.id, {
       operations: [
         {
           op: "replace",

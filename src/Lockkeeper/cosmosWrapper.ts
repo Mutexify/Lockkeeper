@@ -1,4 +1,9 @@
-import { Container, CosmosClient, ItemDefinition } from "@azure/cosmos";
+import {
+  Container,
+  CosmosClient,
+  ItemDefinition,
+  PatchRequestBody,
+} from "@azure/cosmos";
 import { SlotData } from "./types";
 
 export function slotDataFromDBResponse(response: ItemDefinition): SlotData {
@@ -36,4 +41,16 @@ export async function prepareCosmosContainer(): Promise<Container> {
     id: process.env.COSMOS_CONTAINER_NAME,
   });
   return dbContainer.container;
+}
+
+export async function getItemOfId(container: Container, id: string) {
+  return await container.item(id).read();
+}
+
+export async function patchItemOfId(
+  container: Container,
+  id: string,
+  payload: PatchRequestBody
+) {
+  return await container.item(id).patch(payload);
 }

@@ -9,8 +9,6 @@ jest.mock("../src/Lockkeeper/cosmosWrapper", () => ({
   prepareCosmosContainer: jest.fn().mockResolvedValue({} as Container),
 }));
 
-// Now, slotDataFromDBResponse is the original function, not a mock.
-
 describe("maybeUpdateLock", () => {
   it("should return not_found when item does not exist", async () => {
     (getItemOfId as jest.Mock).mockResolvedValue({ statusCode: 404 });
@@ -25,8 +23,6 @@ describe("maybeUpdateLock", () => {
       statusCode: 200,
       resource: { id: "1", blocked: true },
     });
-
-    debugger;
 
     const result = await maybeUpdateLock({ id: "1", blocked: true });
 

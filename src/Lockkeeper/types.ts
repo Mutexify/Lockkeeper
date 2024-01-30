@@ -1,6 +1,6 @@
 export interface SlotData {
   id: string;
-  blocked: boolean;
+  blocked: string | false;
 }
 
 export type LockResult = "success" | "failure" | "error" | "not_found";

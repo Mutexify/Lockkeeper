@@ -17,8 +17,8 @@ export async function maybeUpdateLock(
     return notFound();
   } else if (
     item.statusCode === 200 &&
-    item.resource.blocked === true &&
-    slotData.blocked === true
+    item.resource.blocked !== false &&
+    slotData.blocked !== false
   ) {
     return failure(item.resource);
   } else if (item.statusCode === 200) {

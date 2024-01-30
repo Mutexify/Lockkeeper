@@ -42,7 +42,7 @@ describe("maybeUpdateLock", () => {
   it("should return success when item is not blocked and needs to be blocked", async () => {
     (getItemOfId as jest.Mock).mockResolvedValue({
       statusCode: 200,
-      resource: { id: "1", blocked: null },
+      resource: { id: "1", blocked: false },
     });
     (patchItemOfId as jest.Mock).mockResolvedValue({
       statusCode: 200,
